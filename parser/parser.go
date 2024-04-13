@@ -23,6 +23,17 @@ const (
 	CALL
 )
 
+var precedences = map[token.TokenType]int{
+	token.EQUAL:        EQUALITY,
+	token.BANG_EQUAL:   EQUALITY,
+	token.LESS_THAN:    COMPARISON,
+	token.GREATER_THAN: COMPARISON,
+	token.PLUS:         TERM,
+	token.MINUS:        TERM,
+	token.SLASH:        FACTOR,
+	token.ASTERISK:     FACTOR,
+}
+
 type Parser struct {
 	l *lexer.Lexer
 
@@ -47,8 +58,18 @@ func NewParser(l *lexer.Lexer) *Parser {
 	p.prefixParseFns = make(map[token.TokenType]prefixParseFn)
 	p.registerPrefixParseFn(token.IDENT, p.parseIdentifier)
 	p.registerPrefixParseFn(token.INT, p.parseIntegerLiteral)
-	p.registerPrefixParseFn(token.BANG, p.parsePrefixExpression)
-	p.registerPrefixParseFn(token.MINUS, p.parsePrefixExpression)
+	p.registerPrefixParseFn(token.BANG, p.parseUnaryExpression)
+	p.registerPrefixParseFn(token.MINUS, p.parseUnaryExpression)
+
+    p.infixParseFns = make(map[token.TokenType]infixParseFn)
+	p.registerInfixParseFn(token.EQUAL, p.parseBinaryExpression)
+	p.registerInfixParseFn(token.BANG_EQUAL, p.parseBinaryExpression)
+	p.registerInfixParseFn(token.LESS_THAN, p.parseBinaryExpression)
+	p.registerInfixParseFn(token.GREATER_THAN, p.parseBinaryExpression)
+	p.registerInfixParseFn(token.PLUS, p.parseBinaryExpression)
+	p.registerInfixParseFn(token.MINUS, p.parseBinaryExpression)
+	p.registerInfixParseFn(token.SLASH, p.parseBinaryExpression)
+	p.registerInfixParseFn(token.ASTERISK, p.parseBinaryExpression)
 
 	return p
 }
@@ -144,7 +165,7 @@ func (p *Parser) parseIntegerLiteral() ast.Expression {
 	return literal
 }
 
-func (p *Parser) parsePrefixExpression() ast.Expression {
+func (p *Parser) parseUnaryExpression() ast.Expression {
 	expr := &ast.UnaryExpression{
 		Token:    p.curToken,
 		Operator: p.curToken.Literal,
@@ -189,9 +210,48 @@ func (p *Parser) parseExpression(precedence int) ast.Expression {
 
 	left := prefix()
 
+	for !p.peekTokenIs(token.SEMICOLON) && precedence < p.peekPrecedence() {
+		infix := p.infixParseFns[p.peekToken.Type]
+		if infix == nil {
+			return left
+		}
+
+		p.nextToken()
+        left = p.parseBinaryExpression(left)
+	}
+
 	return left
 }
 
+func (p *Parser) parseBinaryExpression(left ast.Expression) ast.Expression {
+	expr := &ast.BinaryExpression{
+		Token:    p.curToken,
+		Operator: p.curToken.Literal,
+		Left:     left,
+	}
+
+    precedence := p.curPrecedence()
+	p.nextToken()
+	expr.Right = p.parseExpression(precedence)
+
+	return expr
+}
+
+func (p *Parser) curPrecedence() int {
+	if precedence, ok := precedences[p.curToken.Type]; ok {
+		return precedence
+	}
+
+	return LOWEST
+}
+
+func (p *Parser) peekPrecedence() int {
+	if precedence, ok := precedences[p.peekToken.Type]; ok {
+		return precedence
+	}
+
+	return LOWEST
+}
 func (p *Parser) reportMissingPrefixParseFn(t token.TokenType) {
 	msg := fmt.Sprintf("no prefix parse fn for %s found", t)
 	p.Errors = append(p.Errors, msg)
