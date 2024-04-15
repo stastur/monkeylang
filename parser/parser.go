@@ -33,6 +33,7 @@ var precedences = map[token.TokenType]int{
 	token.MINUS:        TERM,
 	token.SLASH:        FACTOR,
 	token.ASTERISK:     FACTOR,
+	token.LPAREN:       CALL,
 }
 
 type Parser struct {
@@ -76,6 +77,7 @@ func NewParser(l *lexer.Lexer) *Parser {
 	p.registerInfixParseFn(token.MINUS, p.parseBinaryExpression)
 	p.registerInfixParseFn(token.SLASH, p.parseBinaryExpression)
 	p.registerInfixParseFn(token.ASTERISK, p.parseBinaryExpression)
+	p.registerInfixParseFn(token.LPAREN, p.parseCallExpression)
 
 	return p
 }
@@ -140,8 +142,10 @@ func (p *Parser) parseLetStatement() *ast.LetStatement {
 		return nil
 	}
 
-	// TODO: skipping expressions
-	for !p.curTokenIs(token.SEMICOLON) {
+	p.nextToken()
+	stmt.Value = p.parseExpression(LOWEST)
+
+	if p.peekTokenIs(token.SEMICOLON) {
 		p.nextToken()
 	}
 
@@ -305,13 +309,44 @@ func (p *Parser) parseFunctionParameters() []*ast.IdentifierExpression {
 	return identifiers
 }
 
+func (p *Parser) parseCallExpression(function ast.Expression) ast.Expression {
+	call := &ast.CallExpression{Token: p.curToken, Function: function}
+	call.Arguments = p.parseCallArguments()
+
+	return call
+}
+
+func (p *Parser) parseCallArguments() []ast.Expression {
+	var args []ast.Expression
+
+	if p.peekTokenIs(token.RPAREN) {
+		p.nextToken()
+		return args
+	}
+
+	p.nextToken()
+	args = append(args, p.parseExpression(LOWEST))
+
+	for p.peekTokenIs(token.COMMA) {
+		p.nextToken()
+		p.nextToken()
+		args = append(args, p.parseExpression(LOWEST))
+	}
+
+	if !p.matchNext(token.RPAREN) {
+		return nil
+	}
+
+	return args
+}
+
 func (p *Parser) parseReturnStatement() *ast.ReturnStatement {
 	stmt := &ast.ReturnStatement{Token: p.curToken}
 
 	p.nextToken()
+	stmt.ReturnValue = p.parseExpression(LOWEST)
 
-	// TODO: skipping expressions
-	for !p.curTokenIs(token.SEMICOLON) {
+	if p.peekTokenIs(token.SEMICOLON) {
 		p.nextToken()
 	}
 
@@ -345,7 +380,7 @@ func (p *Parser) parseExpression(precedence int) ast.Expression {
 		}
 
 		p.nextToken()
-		left = p.parseBinaryExpression(left)
+		left = infix(left)
 	}
 
 	return left

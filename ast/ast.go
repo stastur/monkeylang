@@ -212,17 +212,41 @@ func (expr *FunctionLiteral) expressionNode()      {}
 func (expr *FunctionLiteral) TokenLiteral() string { return expr.Token.Literal }
 func (expr *FunctionLiteral) String() string {
 	var out bytes.Buffer
-	out.WriteString("fn")
 
 	var params []string
 	for i := range len(expr.Parameters) {
 		params = append(params, expr.Parameters[i].String())
 	}
 
+	out.WriteString("fn")
 	out.WriteString("(")
 	out.WriteString(strings.Join(params, ", "))
 	out.WriteString(")")
 	out.WriteString(expr.Body.String())
+
+	return out.String()
+}
+
+type CallExpression struct {
+	Token     token.Token
+	Function  Expression
+	Arguments []Expression
+}
+
+func (expr *CallExpression) expressionNode()      {}
+func (expr *CallExpression) TokenLiteral() string { return expr.Token.Literal }
+func (expr *CallExpression) String() string {
+	var out bytes.Buffer
+
+	var args []string
+	for i := range len(expr.Arguments) {
+		args = append(args, expr.Arguments[i].String())
+	}
+
+	out.WriteString(expr.Function.String())
+	out.WriteString("(")
+	out.WriteString(strings.Join(args, ", "))
+	out.WriteString(")")
 
 	return out.String()
 }
