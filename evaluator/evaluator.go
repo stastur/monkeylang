@@ -46,6 +46,8 @@ func Eval(node ast.Node, env *object.Environment) object.Object {
 		return evalIdentifier(node, env)
 	case *ast.IntegerLiteral:
 		return &object.Integer{Value: node.Value}
+	case *ast.StringLiteral:
+		return &object.String{Value: node.Value}
 	case *ast.Boolean:
 		return nativeBoolToBooleanObject(node.Value)
 	case *ast.UnaryExpression:
@@ -179,6 +181,12 @@ func evalMinusUnaryExpression(obj object.Object) object.Object {
 }
 
 func evalBinaryExpression(op string, left, right object.Object) object.Object {
+	if left.Type() == object.STRING_OBJ && right.Type() == object.STRING_OBJ {
+		left := left.(*object.String)
+		right := right.(*object.String)
+		return evalStringBinaryExpression(op, left, right)
+	}
+
 	if left.Type() == object.INTEGER_OBJ && right.Type() == object.INTEGER_OBJ {
 		left := left.(*object.Integer)
 		right := right.(*object.Integer)
@@ -226,6 +234,23 @@ func evalIntegerBinaryExpression(op string, left, right *object.Integer) object.
 	default:
 		return newError("unknown operator: %s %s %s",
 			op, left.Type(), right.Type())
+	}
+}
+
+func evalStringBinaryExpression(op string, left, right *object.String) object.Object {
+	leftVal := left.Value
+	rightVal := right.Value
+
+	switch op {
+	case "+":
+		return &object.String{Value: leftVal + rightVal}
+	case "==":
+		return nativeBoolToBooleanObject(leftVal == rightVal)
+	case "!=":
+		return nativeBoolToBooleanObject(leftVal != rightVal)
+	default:
+		return newError("unknown operator: %s %s %s",
+			left.Type(), op, right.Type())
 	}
 }
 
