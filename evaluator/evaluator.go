@@ -1,6 +1,7 @@
 package evaluator
 
 import (
+	"fmt"
 	"monkeylang/ast"
 	"monkeylang/object"
 )
@@ -10,6 +11,14 @@ var (
 	TRUE  = &object.Boolean{Value: true}
 	FALSE = &object.Boolean{Value: false}
 )
+
+func newError(format string, a ...any) *object.Error {
+	return &object.Error{Message: fmt.Sprintf(format, a...)}
+}
+
+func isError(obj object.Object) bool {
+	return obj != nil && obj.Type() == object.ERROR_OBJ
+}
 
 func Eval(node ast.Node) object.Object {
 	switch node := node.(type) {
@@ -21,6 +30,10 @@ func Eval(node ast.Node) object.Object {
 	case *ast.BlockStatement:
 		return evalBlockStatement(node)
 	case *ast.ReturnStatement:
+		val := Eval(node.ReturnValue)
+		if isError(val) {
+			return val
+		}
 		return &object.ReturnValue{Value: Eval(node.ReturnValue)}
 
 	case *ast.IntegerLiteral:
@@ -28,10 +41,22 @@ func Eval(node ast.Node) object.Object {
 	case *ast.Boolean:
 		return nativeBoolToBooleanObject(node.Value)
 	case *ast.UnaryExpression:
-		return evalUnaryExpression(node.Operator, Eval(node.Right))
+		right := Eval(node.Right)
+		if isError(right) {
+			return right
+		}
+		return evalUnaryExpression(node.Operator, right)
 	case *ast.BinaryExpression:
 		left := Eval(node.Left)
+		if isError(left) {
+			return left
+		}
+
 		right := Eval(node.Right)
+		if isError(right) {
+			return right
+		}
+
 		return evalBinaryExpression(node.Operator, left, right)
 	case *ast.IfExpression:
 		return evalIfExpression(node)
@@ -46,8 +71,11 @@ func evalProgram(stmts []ast.Statement) object.Object {
 	for i := range len(stmts) {
 		result = Eval(stmts[i])
 
-		if rv, ok := result.(*object.ReturnValue); ok {
-			return rv.Value
+		switch result := result.(type) {
+		case *object.ReturnValue:
+			return result.Value
+		case *object.Error:
+			return result
 		}
 	}
 
@@ -60,8 +88,9 @@ func evalBlockStatement(block *ast.BlockStatement) object.Object {
 	for i := range len(block.Statements) {
 		result = Eval(block.Statements[i])
 
-		if rv, ok := result.(*object.ReturnValue); ok {
-			return rv
+		switch result := result.(type) {
+		case *object.ReturnValue, *object.Error:
+			return result
 		}
 	}
 
@@ -82,7 +111,7 @@ func evalUnaryExpression(op string, right object.Object) object.Object {
 	case "-":
 		return evalMinusUnaryExpression(right)
 	default:
-		return nil
+		return newError("unknown operator: %s%s", op, right.Type())
 	}
 }
 
@@ -100,7 +129,7 @@ func evalBangOperator(obj object.Object) object.Object {
 func evalMinusUnaryExpression(obj object.Object) object.Object {
 	integer, ok := obj.(*object.Integer)
 	if !ok {
-		return NULL
+		return newError("unknown operator: -%s", obj.Type())
 	}
 
 	return &object.Integer{Value: -integer.Value}
@@ -121,7 +150,13 @@ func evalBinaryExpression(op string, left, right object.Object) object.Object {
 		return nativeBoolToBooleanObject(left != right)
 	}
 
-	return NULL
+	if left.Type() != right.Type() {
+		return newError("type mismatch: %s %s %s",
+			left.Type(), op, right.Type())
+	}
+
+	return newError("unknown operator: %s %s %s",
+		left.Type(), op, right.Type())
 }
 
 func evalIntegerBinaryExpression(op string, left, right *object.Integer) object.Object {
@@ -146,12 +181,18 @@ func evalIntegerBinaryExpression(op string, left, right *object.Integer) object.
 	case "!=":
 		return nativeBoolToBooleanObject(leftVal != rightVal)
 	default:
-		return NULL
+		return newError("unknown operator: %s %s %s",
+			op, left.Type(), right.Type())
 	}
 }
 
 func evalIfExpression(node *ast.IfExpression) object.Object {
-	if isTruthy(Eval(node.Condition)) {
+	cond := Eval(node.Condition)
+	if isError(cond) {
+		return cond
+	}
+
+	if isTruthy(cond) {
 		return Eval(node.ThenBranch)
 	}
 
