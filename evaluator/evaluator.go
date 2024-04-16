@@ -22,12 +22,13 @@ func Eval(node ast.Node) object.Object {
 	case *ast.IntegerLiteral:
 		return &object.Integer{Value: node.Value}
 	case *ast.Boolean:
-		if node.Value {
-			return TRUE
-		}
-		return FALSE
+		return nativeBoolToBooleanObject(node.Value)
 	case *ast.UnaryExpression:
 		return evalUnaryExpression(node.Operator, Eval(node.Right))
+	case *ast.BinaryExpression:
+		left := Eval(node.Left)
+		right := Eval(node.Right)
+		return evalBinaryExpression(node.Operator, left, right)
 	}
 
 	return nil
@@ -41,6 +42,13 @@ func evalStatements(stmts []ast.Statement) object.Object {
 	}
 
 	return result
+}
+
+func nativeBoolToBooleanObject(b bool) *object.Boolean {
+	if b {
+		return TRUE
+	}
+	return FALSE
 }
 
 func evalUnaryExpression(op string, right object.Object) object.Object {
@@ -72,4 +80,48 @@ func evalMinusUnaryExpression(obj object.Object) object.Object {
 	}
 
 	return &object.Integer{Value: -integer.Value}
+}
+
+func evalBinaryExpression(op string, left, right object.Object) object.Object {
+	if left.Type() == object.INTEGER_OBJ && right.Type() == object.INTEGER_OBJ {
+		left := left.(*object.Integer)
+		right := right.(*object.Integer)
+		return evalIntegerBinaryExpression(op, left, right)
+	}
+
+	if op == "==" {
+		return nativeBoolToBooleanObject(left == right)
+	}
+
+	if op == "!=" {
+		return nativeBoolToBooleanObject(left != right)
+	}
+
+	return NULL
+}
+
+func evalIntegerBinaryExpression(op string, left, right *object.Integer) object.Object {
+	leftVal := left.Value
+	rightVal := right.Value
+
+	switch op {
+	case "+":
+		return &object.Integer{Value: leftVal + rightVal}
+	case "-":
+		return &object.Integer{Value: leftVal - rightVal}
+	case "*":
+		return &object.Integer{Value: leftVal * rightVal}
+	case "/":
+		return &object.Integer{Value: leftVal / rightVal}
+	case "<":
+		return nativeBoolToBooleanObject(leftVal < rightVal)
+	case ">":
+		return nativeBoolToBooleanObject(leftVal > rightVal)
+	case "==":
+		return nativeBoolToBooleanObject(leftVal == rightVal)
+	case "!=":
+		return nativeBoolToBooleanObject(leftVal != rightVal)
+	default:
+		return NULL
+	}
 }
