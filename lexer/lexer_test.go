@@ -25,6 +25,7 @@ if (5 < 10) {
 10 != 9;
 "foobar";
 "foo bar";
+[1, 2];
 `
 
 	tests := []struct {
@@ -115,10 +116,17 @@ if (5 < 10) {
 		{token.STRING, "foo bar"},
 		{token.SEMICOLON, ";"},
 
+		{token.LBRACKET, "["},
+		{token.INT, "1"},
+		{token.COMMA, ","},
+		{token.INT, "2"},
+		{token.RBRACKET, "]"},
+		{token.SEMICOLON, ";"},
+
 		{token.EOF, ""},
 	}
 
-	l := lexer.NewLexer(input)
+	l := lexer.New(input)
 
 	for i, tt := range tests {
 		tok := l.NextToken()

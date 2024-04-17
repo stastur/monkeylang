@@ -88,9 +88,46 @@ func Eval(node ast.Node, env *object.Environment) object.Object {
 		}
 
 		return applyFunction(function, args)
+	case *ast.ArrayLiteral:
+		elements, err := evalExpressions(node.Elements, env)
+		if err != nil {
+			return err
+		}
+
+		return &object.Array{Elements: elements}
+	case *ast.IndexExpression:
+		array := Eval(node.Left, env)
+		if isError(array) {
+			return array
+		}
+		index := Eval(node.Index, env)
+		if isError(index) {
+			return index
+		}
+
+		return evalIndexExpression(array, index)
 	}
 
 	return nil
+}
+
+func evalIndexExpression(left, index object.Object) object.Object {
+	if left.Type() == object.ARRAY_OBJ && index.Type() == object.INTEGER_OBJ {
+		left := left.(*object.Array)
+		index := index.(*object.Integer)
+		return evalArrayIndexExpression(left, index)
+	}
+
+	return newError("index operator not supported: %s", left.Type())
+}
+
+func evalArrayIndexExpression(array *object.Array, index *object.Integer) object.Object {
+	if index.Value < 0 || int(index.Value) >= len(array.Elements) {
+		return NULL
+	}
+
+	return array.Elements[index.Value]
+
 }
 
 func evalExpressions(
