@@ -96,16 +96,18 @@ func Eval(node ast.Node, env *object.Environment) object.Object {
 
 		return &object.Array{Elements: elements}
 	case *ast.IndexExpression:
-		array := Eval(node.Left, env)
-		if isError(array) {
-			return array
+		left := Eval(node.Left, env)
+		if isError(left) {
+			return left
 		}
 		index := Eval(node.Index, env)
 		if isError(index) {
 			return index
 		}
 
-		return evalIndexExpression(array, index)
+		return evalIndexExpression(left, index)
+	case *ast.HashLiteral:
+		return evalHashLiteral(node, env)
 	}
 
 	return nil
@@ -118,6 +120,15 @@ func evalIndexExpression(left, index object.Object) object.Object {
 		return evalArrayIndexExpression(left, index)
 	}
 
+	if left.Type() == object.HASH_OBJ {
+		left := left.(*object.Hash)
+		hashable, ok := index.(object.Hashable)
+		if !ok {
+			return newError("unusable as hash key: %s", index.Type())
+		}
+		return evalHashIndexExpression(left, hashable)
+	}
+
 	return newError("index operator not supported: %s", left.Type())
 }
 
@@ -128,6 +139,15 @@ func evalArrayIndexExpression(array *object.Array, index *object.Integer) object
 
 	return array.Elements[index.Value]
 
+}
+
+func evalHashIndexExpression(hash *object.Hash, index object.Hashable) object.Object {
+	hashPair, ok := hash.Pairs[index.HashKey()]
+	if !ok {
+		return NULL
+	}
+
+	return hashPair.Value
 }
 
 func evalExpressions(
@@ -373,4 +393,32 @@ func unwrapReturnValue(obj object.Object) object.Object {
 	}
 
 	return obj
+}
+
+func evalHashLiteral(
+	node *ast.HashLiteral,
+	env *object.Environment,
+) object.Object {
+	pairs := make(map[object.HashKey]object.HashPair)
+
+	for keyNode, valueNode := range node.Pairs {
+		key := Eval(keyNode, env)
+		if isError(key) {
+			return key
+		}
+
+		hashKey, ok := key.(object.Hashable)
+		if !ok {
+			return newError("unusable as hash key: %s", key.Type())
+		}
+
+		value := Eval(valueNode, env)
+		if isError(value) {
+			return value
+		}
+
+		pairs[hashKey.HashKey()] = object.HashPair{Key: key, Value: value}
+	}
+
+	return &object.Hash{Pairs: pairs}
 }

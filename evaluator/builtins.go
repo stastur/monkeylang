@@ -1,6 +1,9 @@
 package evaluator
 
-import "monkeylang/object"
+import (
+	"fmt"
+	"monkeylang/object"
+)
 
 var builtins = map[string]*object.Builtin{
 	"len": {
@@ -96,7 +99,7 @@ var builtins = map[string]*object.Builtin{
 				return newError("argument to `push` must be ARRAY, got %s", args[0].Type())
 			}
 
-            length := len(arr.Elements)
+			length := len(arr.Elements)
 			newElements := make([]object.Object, length+1)
 			copy(newElements, arr.Elements)
 			newElements[length] = args[1]
@@ -104,6 +107,14 @@ var builtins = map[string]*object.Builtin{
 			return &object.Array{Elements: newElements}
 		},
 	},
+
+	"puts": {
+		Fn: func(args ...object.Object) object.Object {
+			for _, arg := range args {
+				fmt.Println(arg.Inspect())
+			}
+
+			return NULL
+		},
+	},
 }
-
-
