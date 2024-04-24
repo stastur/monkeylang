@@ -21,6 +21,9 @@ const (
 	BUILTIN_OBJ      = "BUILTIN"
 	ARRAY_OBJ        = "ARRAY"
 	HASH_OBJ         = "HASH"
+	QUOTE_OBJ        = "QUOTE"
+	UNQUOTE_OBJ      = "UNQUOTE"
+	MACRO_OBJ        = "MACRO"
 )
 
 type Object interface {
@@ -176,3 +179,36 @@ func (h *Hash) Inspect() string {
 type Hashable interface {
 	HashKey() HashKey
 }
+
+type Quote struct {
+	Node ast.Node
+}
+
+func (o *Quote) Type() ObjectType { return QUOTE_OBJ }
+func (o *Quote) Inspect() string {
+	return fmt.Sprintf("QUOTE(%s)", o.Node.String())
+}
+
+type Macro struct {
+	Parameters []*ast.IdentifierExpression
+	Body       *ast.BlockStatement
+	Env        *Environment
+}
+
+func (o *Macro) Inspect() string {
+	var out bytes.Buffer
+
+	params := []string{}
+	for _, p := range o.Parameters {
+		params = append(params, p.String())
+	}
+
+	out.WriteString("macro")
+	out.WriteString("(")
+	out.WriteString(strings.Join(params, ", "))
+	out.WriteString(") {\n")
+	out.WriteString(o.Body.String())
+	out.WriteString("\n}")
+	return out.String()
+}
+func (o *Macro) Type() ObjectType { return MACRO_OBJ }

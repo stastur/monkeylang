@@ -72,6 +72,7 @@ func New(l *lexer.Lexer) *Parser {
 	p.registerPrefixParseFn(token.STRING, p.parseStringLiteral)
 	p.registerPrefixParseFn(token.LBRACKET, p.parseArrayLiteral)
 	p.registerPrefixParseFn(token.LBRACE, p.parseHashLiteral)
+	p.registerPrefixParseFn(token.MACRO, p.parseMacroLiteral)
 
 	p.infixParseFns = make(map[token.TokenType]infixParseFn)
 	p.registerInfixParseFn(token.EQUAL, p.parseBinaryExpression)
@@ -458,6 +459,24 @@ func (p *Parser) parseHashLiteral() ast.Expression {
 	}
 
 	return hash
+}
+
+func (p *Parser) parseMacroLiteral() ast.Expression {
+	macro := &ast.MacroLiteral{Token: p.curToken}
+
+	if !p.matchNext(token.LPAREN) {
+		return nil
+	}
+
+	macro.Parameters = p.parseFunctionParameters()
+
+	if !p.matchNext(token.LBRACE) {
+		return nil
+	}
+
+	macro.Body = p.parseBlockStatement()
+
+	return macro
 }
 
 func (p *Parser) curPrecedence() int {
